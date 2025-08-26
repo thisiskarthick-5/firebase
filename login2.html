@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase Patient Analysis</title>
+</head>
+<body>
+  <h2>Firebase Authentication + Patient Data</h2>
+
+  <!-- Sign Up Form -->
+  <h3>Sign Up</h3>
+  <form id="signupForm">
+    <input type="email" id="signupEmail" placeholder="Email" required><br><br>
+    <input type="password" id="signupPassword" placeholder="Password" required><br><br>
+    <button type="submit">Sign Up</button>
+  </form>
+
+  <hr>
+
+  <!-- Login Form -->
+  <h3>Login</h3>
+  <form id="loginForm">
+    <input type="email" id="loginEmail" placeholder="Email" required><br><br>
+    <input type="password" id="loginPassword" placeholder="Password" required><br><br>
+    <button type="submit">Login</button>
+  </form>
+
+  <p id="message"></p>
+
+  <div id="patientSection" style="display:none;">
+    <h3>Add Patient Data</h3>
+    <form id="patientForm">
+      <input type="text" id="patientName" placeholder="Patient Name" required><br><br>
+      <input type="number" id="patientAge" placeholder="Age" required><br><br>
+      <input type="text" id="symptoms" placeholder="Symptoms" required><br><br>
+      <input type="number" id="testResult" placeholder="Test Result" required><br><br>
+      <button type="submit">Add Patient</button>
+    </form>
+
+    <h3>Patient Analysis</h3>
+    <div id="analysis"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDRNJh5OeZOpv6DRrpR0Kk_GrMmNWUUbtk",
+      authDomain: "karthick-6ce15.firebaseapp.com",
+      projectId: "karthick-6ce15",
+      storageBucket: "karthick-6ce15.firebasestorage.app",
+      messagingSenderId: "242986912515",
+      appId: "1:242986912515:web:87de0c6e43377195e97736",
+      measurementId: "G-7TFXCLKY6G"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const message = document.getElementById("message");
+
+    // Sign Up
+    document.getElementById("signupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+        message.textContent = "Sign Up successful! You can now log in.";
+      } catch(e) { message.textContent = e.message; }
+    });
+
+    // Login
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        message.textContent = "Login successful!";
+      } catch(e) { message.textContent = e.message; }
+    });
+
+    // Show welcome + patient section
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        document.body.innerHTML = `
+          <h2>Welcome, ${user.email} 🎉</h2>
+          <button id="logoutBtn">Logout</button>
+          <div id="patientSection">
+            <h3>Add Patient Data</h3>
+            <form id="patientForm">
+              <input type="text" id="patientName" placeholder="Patient Name" required><br><br>
+              <input type="number" id="patientAge" placeholder="Age" required><br><br>
+              <input type="text" id="symptoms" placeholder="Symptoms" required><br><br>
+              <input type="number" id="testResult" placeholder="Test Result" required><br><br>
+              <button type="submit">Add Patient</button>
+            </form>
+            <h3>Patient Analysis</h3>
+            <div id="analysis"></div>
+          </div>
+        `;
+
+        // Logout button
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+          signOut(auth).then(()=>location.reload());
+        });
+
+        const patientForm = document.getElementById("patientForm");
+        const analysisDiv = document.getElementById("analysis");
+
+        // Add patient
+        patientForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const name = document.getElementById("patientName").value;
+          const age = parseInt(document.getElementById("patientAge").value);
+          const symptoms = document.getElementById("symptoms").value;
+          const testResult = parseFloat(document.getElementById("testResult").value);
+
+          try {
+            await addDoc(collection(db, "patients"), { name, age, symptoms, testResult, timestamp: new Date() });
+            patientForm.reset();
+            message.textContent = "Patient data added!";
+            displayAnalysis();
+          } catch(e) { message.textContent = e.message; }
+        });
+
+        // Display patient analysis
+        async function displayAnalysis() {
+          const snapshot = await getDocs(collection(db, "patients"));
+          let totalAge = 0, totalTest = 0, count = 0;
+          let listHTML = "<ul>";
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            listHTML += `<li>${data.name} | Age: ${data.age} | Test: ${data.testResult}</li>`;
+            totalAge += data.age;
+            totalTest += data.testResult;
+            count++;
+          });
+          listHTML += "</ul>";
+
+          const avgAge = count ? (totalAge/count).toFixed(2) : 0;
+          const avgTest = count ? (totalTest/count).toFixed(2) : 0;
+
+          analysisDiv.innerHTML = `
+            ${listHTML}
+            <p>Total Patients: ${count}</p>
+            <p>Average Age: ${avgAge}</p>
+            <p>Average Test Result: ${avgTest}</p>
+          `;
+        }
+
+        displayAnalysis();
+      }
+    });
+  </script>
+</body>
+</html>
