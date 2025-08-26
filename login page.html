@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase Auth Example</title>
+</head>
+<body>
+  <h2>Firebase Authentication</h2>
+
+  <!-- Sign Up Form -->
+  <h3>Sign Up</h3>
+  <form id="signupForm">
+    <input type="email" id="signupEmail" placeholder="Enter Email" required><br><br>
+    <input type="password" id="signupPassword" placeholder="Enter Password" required><br><br>
+    <button type="submit">Sign Up</button>
+  </form>
+
+  <hr>
+
+  <!-- Login Form -->
+  <h3>Login</h3>
+  <form id="loginForm">
+    <input type="email" id="loginEmail" placeholder="Enter Email" required><br><br>
+    <input type="password" id="loginPassword" placeholder="Enter Password" required><br><br>
+    <button type="submit">Login</button>
+  </form>
+
+  <p id="message"></p>
+
+  <script type="module">
+    // Import Firebase SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { 
+      getAuth, 
+      createUserWithEmailAndPassword, 
+      signInWithEmailAndPassword, 
+      onAuthStateChanged, 
+      signOut 
+    } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDRNJh5OeZOpv6DRrpR0Kk_GrMmNWUUbtk",
+      authDomain: "karthick-6ce15.firebaseapp.com",
+      projectId: "karthick-6ce15",
+      storageBucket: "karthick-6ce15.firebasestorage.app",
+      messagingSenderId: "242986912515",
+      appId: "1:242986912515:web:87de0c6e43377195e97736",
+      measurementId: "G-7TFXCLKY6G"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const message = document.getElementById("message");
+
+    // Sign Up
+    document.getElementById("signupForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+
+      createUserWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          message.textContent = "Sign Up successful! You can now log in.";
+        })
+        .catch((error) => {
+          message.textContent = "Error: " + error.message;
+        });
+    });
+
+    // Login
+    document.getElementById("loginForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+
+      signInWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          message.textContent = "Login successful!";
+        })
+        .catch((error) => {
+          message.textContent = "Error: " + error.message;
+        });
+    });
+
+    // Show Welcome message if user is logged in
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        document.body.innerHTML = `
+          <h2>Welcome, ${user.email} 🎉</h2>
+          <button id="logoutBtn">Logout</button>
+        `;
+
+        // Logout functionality
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+          signOut(auth).then(() => {
+            location.reload();
+          });
+        });
+      }
+    });
+  </script>
+</body>
+</html>
