@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login / Signup with Location Chart</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(to right, #667eea, #764ba2);
+      margin: 0; padding: 0;
+      display: flex; justify-content: center; align-items: center;
+      height: 100vh; flex-direction: column;
+    }
+    .card {
+      background: #fff; padding: 30px;
+      border-radius: 10px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      margin-bottom: 20px;
+    }
+    h2 { margin-bottom: 20px; color: #333; text-align: center; }
+    input {
+      width: 100%; padding: 12px; margin: 10px 0;
+      border: 1px solid #ccc; border-radius: 6px; font-size: 14px;
+    }
+    button {
+      width: 100%; padding: 12px;
+      background: #667eea; color: #fff;
+      border: none; font-size: 16px;
+      margin-top: 10px; border-radius: 6px; cursor: pointer;
+    }
+    button:hover { background: #5a67d8; }
+    .tabs {
+      display: flex; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .tabs button {
+      width: 48%; background: #eee; color: #333;
+    }
+    .tabs button.active {
+      background: #667eea; color: #fff;
+    }
+    .message {
+      margin-top: 10px; text-align: center; font-size: 14px;
+    }
+    .error { color: red; }
+    .success { color: green; }
+    #welcome { text-align: center; color: #fff; max-width: 600px; }
+    canvas { max-width: 400px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+
+<div class="card" id="authCard">
+  <div class="tabs">
+    <button id="loginTab" class="active">Login</button>
+    <button id="signupTab">Sign Up</button>
+  </div>
+
+  <div id="formArea">
+    <h2 id="formTitle">Login</h2>
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <input type="text" id="location" placeholder="Your City (Only for Sign Up)" style="display: none;" />
+    <button id="authButton">Login</button>
+    <div id="message" class="message"></div>
+  </div>
+</div>
+
+<div id="welcome" style="display:none;">
+  <h2>Welcome, <span id="userEmail"></span>! 🎉</h2>
+  <p style="font-size: 18px; margin-top: 20px;">
+    I’m <strong>Karthick</strong>, a passionate <strong>Web Developer</strong> 🚀.<br />
+    Happy to have you here!
+  </p>
+  <canvas id="locationChart" width="400" height="400"></canvas>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { 
+    getAuth, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword 
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc,
+    getDocs, 
+    collection 
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAD_fd-oaqGb0ib8vI2CN6_EgaGf1bam1A",
+    authDomain: "abcd-ff737.firebaseapp.com",
+    projectId: "abcd-ff737",
+    storageBucket: "abcd-ff737.firebasestorage.app",
+    messagingSenderId: "181593024290",
+    appId: "1:181593024290:web:57038895f85162e0a7277b",
+    measurementId: "G-DV7RHEGJ36"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const emailInput = document.getElementById("email");
+  const passwordInput = document.getElementById("password");
+  const locationInput = document.getElementById("location");
+  const authButton = document.getElementById("authButton");
+  const message = document.getElementById("message");
+  const formTitle = document.getElementById("formTitle");
+
+  const loginTab = document.getElementById("loginTab");
+  const signupTab = document.getElementById("signupTab");
+
+  let isLogin = true;
+
+  // Switch Tabs
+  loginTab.addEventListener("click", () => {
+    isLogin = true;
+    formTitle.textContent = "Login";
+    authButton.textContent = "Login";
+    locationInput.style.display = "none";
+    loginTab.classList.add("active");
+    signupTab.classList.remove("active");
+    message.textContent = "";
+  });
+
+  signupTab.addEventListener("click", () => {
+    isLogin = false;
+    formTitle.textContent = "Sign Up";
+    authButton.textContent = "Sign Up";
+    locationInput.style.display = "block";
+    signupTab.classList.add("active");
+    loginTab.classList.remove("active");
+    message.textContent = "";
+  });
+
+  // Auth Handler
+  authButton.addEventListener("click", async () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
+    const location = locationInput.value.trim();
+
+    if (!email || !password || (!isLogin && !location)) {
+      message.textContent = "Please fill all required fields.";
+      message.className = "message error";
+      return;
+    }
+
+    try {
+      let userCredential;
+
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        await ensureUserLocation(userCredential.user);
+      } else {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Save to Firestore on sign up
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          email: email,
+          location: location
+        });
+      }
+
+      showWelcome(userCredential.user);
+
+    } catch (error) {
+      message.textContent = error.message;
+      message.className = "message error";
+    }
+  });
+
+  // Check if user has Firestore data, prompt if missing
+  async function ensureUserLocation(user) {
+    const userDocRef = doc(db, "users", user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (!userDocSnap.exists()) {
+      let city = "";
+      while (!city) {
+        city = prompt("Please enter your city to complete your profile:");
+        if (city) {
+          city = city.trim();
+        }
+      }
+      await setDoc(userDocRef, {
+        email: user.email,
+        location: city
+      });
+    }
+  }
+
+  // Show Welcome + Chart (cumulative data)
+  async function showWelcome(user) {
+    document.getElementById("authCard").style.display = "none";
+    document.getElementById("welcome").style.display = "block";
+    document.getElementById("userEmail").textContent = user.email;
+
+    // Fetch all users from Firestore
+    const querySnapshot = await getDocs(collection(db, "users"));
+    const locationCounts = {};
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const city = data.location || "Unknown";
+      locationCounts[city] = (locationCounts[city] || 0) + 1;
+    });
+
+    // Prepare data for Chart.js
+    const labels = Object.keys(locationCounts);
+    const data = Object.values(locationCounts);
+
+    const ctx = document.getElementById("locationChart").getContext("2d");
+    
+    // Destroy previous chart if any
+    if (window.myPieChart) window.myPieChart.destroy();
+
+    window.myPieChart = new Chart(ctx, {
+      type: "pie",
+      data: {
+        labels,
+        datasets: [{
+          label: "User Location Distribution",
+          data,
+          backgroundColor: [
+            '#667eea', '#764ba2', '#f6ad55',
+            '#48bb78', '#f56565', '#4299e1',
+            '#ed64a6', '#ecc94b', '#81e6d9'
+          ],
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: "bottom"
+          }
+        }
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
